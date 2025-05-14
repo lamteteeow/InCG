@@ -33,7 +33,7 @@ void main()
     vec3 colorBoxMax = vec3(-1.0 / 0.0);  // -infinity
     vec3 colorBoxMin = vec3(1.0 / 0.0);   // +infinity
 
-    for (int i = 0; i < 9; ++i)
+    for (int i = 0; i < 9; i++)
     {
         // TODO b) accumulate weighed 3x3 samples from current frame
         vec4 sampleColor = texelFetch(currFrame, ivec2(gid) + offsets[i], 0);
@@ -81,14 +81,14 @@ void main()
         // Calculate velocity - difference between current and reprojected position
         vec2 velocity = abs(tex_coord - prev_tex_coord) * res;
         float velocityMagnitude = length(velocity);
-        
+
         // Calculate luma difference between current and history
         float lumaDiff = abs(luma(color.rgb) - luma(historyColor.rgb));
-        
+
         // Reduce feedback based on velocity and luma difference
         float velocityFactor = clamp(1.0 - velocityMagnitude * 0.5, 0.0, 1.0);
         float lumaFactor = clamp(1.0 - lumaDiff * 5.0, 0.0, 1.0);
-        
+
         // Combine factors (using minimum for conservative approach)
         feedback = maxFeedback * min(velocityFactor, lumaFactor);
     }

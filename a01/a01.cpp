@@ -100,37 +100,27 @@ void Assignment01::jitterAndWeight()
     jittProjMatrix = projectionMatrix();
     // TODO a) setup jittered projection for the current frame (screen space translation)
     // Note the matrix layout if altering the matrix directly
-
-    // Calculate the jitter in normalized device coordinates (NDC)
-    float ndcJitterX = jitterX / static_cast<float>(resolution().x);
-    float ndcJitterY = jitterY / static_cast<float>(resolution().y);
-
-    // For OpenGL, the projection matrix is column-major.
-    // Apply translation in NDC to the projection matrix (offset the [2][0] and [2][1] elements)
-    // This shifts the projection center by the jitter amount.
-    jittProjMatrix[2][0] += ndcJitterX * 2.0f;
-    jittProjMatrix[2][1] += ndcJitterY * 2.0f;
+    jittProjMatrix[2][0] += jitterX / static_cast<float>(resolution().x);
+    jittProjMatrix[2][1] += jitterY / static_cast<float>(resolution().y);
 
 
     // TODO b) calculate normalized filter weights (3x3 pixels) for the current frame
     const float sampleOffsets[9][2] = {{-1.0f, -1.0f}, {0.0f, -1.0f}, {1.0f, -1.0f}, {-1.0f, 0.0f}, {0.0f, 0.0f},
                                        {1.0f, 0.0f},   {-1.0f, 1.0f}, {0.0f, 1.0f},  {1.0f, 1.0f}};
-    //for (int i = 0; i < 9; ++i) weights[i] = 0;
-    //weights[4] = 1;
-
-    float sum = 0.0f;
-    for (int i = 0; i < 9; ++i)
-    {
-        // Using Blackman-Harris 3.3 kernel
-        float dx   = sampleOffsets[i][0];
-        float dy   = sampleOffsets[i][1];
-        weights[i] = std::exp(-2.29f * (dx * dx + dy * dy));
-        sum += weights[i];
+    glm::vec2 jittMiddle = glm::vec2(jitterX, jitterY);
+    float weightSum = 0;
+    for (int i = 0; i < 9; i++) {
+        // Get middle pixel with jitter applied
+        // Calculate euclid distance to jittered middle point
+        glm::vec2 offsetVec = glm::vec2(sampleOffsets[i][0], sampleOffsets[i][1]);
+        float distance = glm::distance(jittMiddle, offsetVec);
+        weights[i] = exp(-2.29f * (distance * distance));
+        weightSum += weights[i];
     }
-    // Normalize weights
-    for (int i = 0; i < 9; ++i)
-    {
-        weights[i] /= sum;
+    for (int i = 0; i < 9; i++) {
+        // Normalize
+        weights[i] /= weightSum;
+        //printf("%f\n", weights[i]);
     }
 
 }
@@ -199,11 +189,7 @@ void Assignment01::taaPass()
     if (useReprojection)
     {
         // TODO c) prepare the reprojection matrix - current frame -> previous frame
-        
-        // The reprojection matrix maps current NDC to previous NDC.
-        glm::fmat4 currViewProj = jittProjMatrix * viewMatrix(); // current P V
-        glm::fmat4 prevViewProj = jittProjMatrix * prevViewMatrix; // previous P V
-        reProj                  = prevViewProj * glm::inverse(currViewProj);
+        reProj = jittProjMatrix * prevViewMatrix * glm::inverse(viewMatrix()) * glm::inverse(jittProjMatrix);
 
         /////////////////////////////////////////////////////////////////////////
         prevViewMatrix = viewMatrix();
