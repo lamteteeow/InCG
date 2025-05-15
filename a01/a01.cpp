@@ -122,7 +122,7 @@ void Assignment01::jitterAndWeight()
         weights[i] /= weightSum;
         //printf("%f\n", weights[i]);
     }
-
+    //printf("asd\n");
 }
 
 void Assignment01::renderScene() const

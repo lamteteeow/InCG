@@ -27,6 +27,7 @@ float luma(vec3 rgb)
 void main()
 {
     if (gid.x >= res.x || gid.y >= res.y) return;
+    if (gid.x == 0 || gid.y == 0) return; // add lower bound
 
     // get filtered sample and color neighborhood
     vec4 color       = vec4(0);
@@ -36,6 +37,7 @@ void main()
     for (int i = 0; i < 9; i++)
     {
         // TODO b) accumulate weighed 3x3 samples from current frame
+        // bound checked at line 29 and 30
         vec4 sampleColor = texelFetch(currFrame, ivec2(gid) + offsets[i], 0);
         // weights are already normalized
         color += sampleColor * weights[i];
@@ -44,6 +46,9 @@ void main()
         colorBoxMin = min(colorBoxMin, sampleColor.rgb);
         colorBoxMax = max(colorBoxMax, sampleColor.rgb);
     }
+
+    // Make sure color is less than or equal to 1 after accumulation
+    color = min(color, vec4(1));
 
     // if !doFilter use unweighted center pixel
     if (!doFilter) color = texelFetch(currFrame, ivec2(gid) + offsets[4], 0);
@@ -78,19 +83,29 @@ void main()
     if (doDynamicFeedback)
     {
         // TODO bonus: adjust feedback depending on luma/velocity
-        // Calculate velocity - difference between current and reprojected position
+        // Calculate velocity (in pixels)
         vec2 velocity = abs(tex_coord - prev_tex_coord) * res;
         float velocityMagnitude = length(velocity);
 
         // Calculate luma difference between current and history
         float lumaDiff = abs(luma(color.rgb) - luma(historyColor.rgb));
 
-        // Reduce feedback based on velocity and luma difference
-        float velocityFactor = clamp(1.0 - velocityMagnitude * 0.5, 0.0, 1.0);
-        float lumaFactor = clamp(1.0 - lumaDiff * 5.0, 0.0, 1.0);
+        // Parameters for tuning
+        float velocityThreshold = 1.0; // pixels, adjust as needed
+        float lumaThreshold = 0.1;     // adjust as needed
 
-        // Combine factors (using minimum for conservative approach)
-        feedback = maxFeedback * min(velocityFactor, lumaFactor);
+        // Feedback decreases smoothly as velocity or luma difference increases
+        float velocityFactor = 1.0 - smoothstep(0.0, velocityThreshold, velocityMagnitude);
+        float lumaFactor = 1.0 - smoothstep(0.0, lumaThreshold, lumaDiff);
+
+        // Combine factors (conservative: take minimum)
+//        float adaptiveFactor = min(velocityFactor, lumaFactor);
+        float adaptiveFactor = velocityFactor * lumaFactor;
+
+        // Map to feedback range [minFeedback, maxFeedback]
+        float minFeedback = 0.7;
+
+        feedback = mix(minFeedback, maxFeedback, adaptiveFactor);
     }
 
     // TODO a) mix current frame with previous frames (feedback)
